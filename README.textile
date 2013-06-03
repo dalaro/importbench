@@ -1,0 +1,55 @@
+Tests behavior and performance when importing data into the titan graph database http://thinkaurelius.github.io/titan/
+The data source is from Java objects (not external text files).
+
+
+h2. How to run
+
+* Adapt the Config.java to your environment. Changing the BERKELEY_PATH should be enough.
+* Run the App.java.
+
+
+h2. Components and Configuration
+
+* Titan graph 0.3.1
+* Embedded berkeley
+* No external indexer active (such as ElasticSearch)
+* One simple vertex with 4 fields (string, string, int, bool) one of them indexed
+* Single thread for importing
+* One transaction does 10k vertices
+* 10 mio vertices in total
+* Before each insert, I perform a string-based (dummy) lookup to see if a vertex with that name
+  already exists. It never does... it's just to be closer to my real app.
+
+
+h2. The problem
+
+I've noticed non-linear execution time when batch-importing data into titan graph with berkeley.
+The problem is that it slows down so dramatically in my application that the importer won't run
+to the end in reasonable time (days).
+
+This project tries to reproduce it, and succeeds on small scale, I believe.
+
+Here are the numbers for how it behaves "on my machine".
+My machine is a Windows 7 64bit workstation, the data folder is on a secondary ssd (no other work).
+The project starts with an empty db (it creates it).
+
+||_.begin|_.after 5mio|_.after 10 mio|_.restart app|_.after 10 mio|_.after 15 mio|
+||1999|2411|2225||2106|1738|
+|One transaction is|1801|1741|2041||1999|2586|
+|one line and |1713|2002|2147||1909|1876|
+|inserts 10k vertices|1767|2673|3070||1794|1811|
+|without any edges.|1872|1773|2107||1890|1798|
+||1588|1758|2359||1611|2419|
+|All numbers are in ms.|1599|2426|2813||1665|1804|
+||2123|1814|1869||1819|1825|
+||1544|1887|1862||1616|1819|
+||1633|2449|1790||1593|2542|
+|TOTAL of 10 tx = 100k vertices|17639|20934|22283||18002|20218|
+
+With an empty db, the first 100k vertices took 17.639 seconds.
+After 10 mio vertices the transaction commit time increased to 22.283 seconds.
+Then stopping the app, and continuing to insert into the same db brings the same
+execution times as before. The longer the importer runs, the slower it gets.
+DB size seems irrelevant.
+
+Why? What can I do about it?
